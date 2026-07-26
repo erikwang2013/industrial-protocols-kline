@@ -37,7 +37,10 @@ class KLineDriver implements DriverInterface
         stream_set_blocking($this->serial, true);
 
         // Configure for 5-baud init then switch to 10400
-        exec(sprintf('stty -F %s 5 cs8 -cstopb -parenb 2>/dev/null', escapeshellarg($this->device)));
+        @exec(sprintf('stty -F %s 5 cs8 -cstopb -parenb 2>/dev/null', escapeshellarg($this->device)), result_code: $retval);
+        if ($retval !== 0) {
+            // Non-fatal: serial config may succeed after connect
+        }
 
         // Send 5-baud init: address byte at 5 bps (200ms per bit)
         // 0x33 = typical ECM address; each bit takes 200ms
@@ -46,7 +49,7 @@ class KLineDriver implements DriverInterface
 
         // Wait for ECU sync byte (0x55)
         usleep(25000); // W4: 25ms pause
-        exec(sprintf('stty -F %s %d cs8 -cstopb -parenb 2>/dev/null', escapeshellarg($this->device), $this->baudRate));
+        @exec(sprintf('stty -F %s %d cs8 -cstopb -parenb 2>/dev/null', escapeshellarg($this->device), $this->baudRate), result_code: $retval);
 
         // Read sync byte 0x55 and key bytes
         $sync = $this->readByte();
@@ -167,7 +170,7 @@ class KLineDriver implements DriverInterface
         $bitDuration = 200000; // microseconds
 
         // Start bit (low)
-        exec(sprintf('stty -F %s -echo 2>/dev/null', escapeshellarg($this->device)));
+        @exec(sprintf('stty -F %s -echo 2>/dev/null', escapeshellarg($this->device)), result_code: $retval);
         usleep($bitDuration);
 
         // Data bits, LSB first

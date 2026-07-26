@@ -6,7 +6,9 @@
 
 namespace Erikwang2013\IndustrialProtocols\KLine\Exception;
 
-class KLineException extends \RuntimeException
+use Erikwang2013\IndustrialProtocols\Exception\ProtocolException;
+
+class KLineException extends ProtocolException
 {
     public static function checksumMismatch(int $expected, int $actual): self
     {
