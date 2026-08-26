@@ -72,4 +72,49 @@ class KLineTest extends TestCase
         $this->expectException(\Erikwang2013\IndustrialProtocols\KLine\Exception\KLineException::class);
         KLineFrame::fromBytes(chr(0x09));
     }
+
+    public function testLongFormatRoundtrip(): void
+    {
+        // 64+ bytes forces the long format (Fmt length bits = 0, Len byte follows)
+        $data = range(0, 70);
+        $frame = new KLineFrame(0x33, 0xF1, $data, KLineFrame::ADDR_FUNCTIONAL);
+        $bytes = $frame->toBytes();
+
+        $this->assertSame(KLineFrame::ADDR_FUNCTIONAL, ord($bytes[0]) & 0x03);
+        $this->assertSame(0, (ord($bytes[0]) >> 2) & 0x3F); // length bits zeroed
+        $this->assertSame(71, ord($bytes[3]));              // long-format length byte
+
+        $decoded = KLineFrame::fromBytes($bytes);
+        $this->assertSame($data, $decoded->getRawData());
+        $this->assertSame(KLineFrame::ADDR_FUNCTIONAL, $decoded->getAddrMode());
+        $this->assertSame(0x33, $decoded->getTarget());
+        $this->assertSame(0xF1, $decoded->getSource());
+    }
+
+    public function testRoundTripEncodeDecode(): void
+    {
+        $frame = new KLineFrame(0x10, 0xF2, [0x09, 0x92], KLineFrame::ADDR_CARB);
+        $decoded = KLineFrame::fromBytes($frame->toBytes());
+        $this->assertSame(0x10, $decoded->getTarget());
+        $this->assertSame(0xF2, $decoded->getSource());
+        $this->assertSame(KLineFrame::ADDR_CARB, $decoded->getAddrMode());
+        $this->assertSame([0x09, 0x92], $decoded->getRawData());
+        $this->assertSame(0x09, $decoded->getServiceId());
+    }
+
+    public function testTruncatedFrameThrows(): void
+    {
+        // Header declares 2 data bytes but only 1 is present
+        $bytes = chr(0x09) . chr(0x33) . chr(0xF1) . chr(0x01);
+        $this->expectException(\Erikwang2013\IndustrialProtocols\KLine\Exception\KLineException::class);
+        KLineFrame::fromBytes($bytes);
+    }
+
+    public function testChecksumVerify(): void
+    {
+        $frame = new KLineFrame(0x33, 0xF1, [0x01, 0x0C], KLineFrame::ADDR_PHYSICAL);
+        $this->assertSame(0x3A, $frame->computeChecksum()); // 0x09+0x33+0xF1+0x01+0x0C = 0x13A & 0xFF
+        $data = $frame->getData();
+        $this->assertSame(0x3A, $data['checksum']);
+    }
 }
